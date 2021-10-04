@@ -9,16 +9,16 @@ import java.io.IOException;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
-import org.apache.hadoop.hbase.HColumnDescriptor;
-import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Admin;
+import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.Get;
-import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Table;
+import org.apache.hadoop.hbase.client.TableDescriptorBuilder;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -32,7 +32,8 @@ public class CoprocessorTest {
   @BeforeClass
   public static void before() throws Exception {
     TEST_UTIL = new HBaseTestingUtility();
-    TEST_UTIL.getConfiguration().set("hbase.coprocessor.region.classes", UpdatingCoprocessor.class.getName());
+    TEST_UTIL.getConfiguration().set("hbase.coprocessor.region.classes", UpdatingObserver.class.getName());
+    TEST_UTIL.getConfiguration().set("hbase.coprocessor.regionserver.classes", UpdatingCoprocessor.class.getName());
     TEST_UTIL.startMiniCluster(1);
   }
 
@@ -46,16 +47,16 @@ public class CoprocessorTest {
     final long testStartMillis = System.currentTimeMillis();
     TableName tn = TableName.valueOf("coprocessorTest");
     Connection conn = TEST_UTIL.getConnection();
-    HBaseAdmin admin = TEST_UTIL.getHBaseAdmin();
+    Admin admin = TEST_UTIL.getAdmin();
     if (admin.tableExists(tn)) {
       admin.disableTable(tn);
       admin.deleteTable(tn);
     }
 
-    HTableDescriptor htd = new HTableDescriptor(tn);
-    htd.addFamily(new HColumnDescriptor(UpdatingCoprocessor.METADATA_FAMILY));
-    htd.addFamily(new HColumnDescriptor(DATA_FAMILY));
-    admin.createTable(htd);
+    TableDescriptorBuilder builder = TableDescriptorBuilder.newBuilder(tn);
+    builder.setColumnFamily(ColumnFamilyDescriptorBuilder.of(UpdatingObserver.METADATA_FAMILY));
+    builder.setColumnFamily(ColumnFamilyDescriptorBuilder.of(DATA_FAMILY));
+    admin.createTable(builder.build());
 
     Table t = conn.getTable(tn);
     Put p = new Put(Bytes.toBytes("row1"));
@@ -70,18 +71,18 @@ public class CoprocessorTest {
       System.out.println(CellUtil.toString(cell, true));
     }
     System.out.flush();
-    Cell lastUpdateCell = result.getColumnLatestCell(UpdatingCoprocessor.METADATA_FAMILY,
-        UpdatingCoprocessor.LAST_UPDATE_MILLIS_COLUMN);
+    Cell lastUpdateCell = result.getColumnLatestCell(UpdatingObserver.METADATA_FAMILY,
+        UpdatingObserver.LAST_UPDATE_MILLIS_COLUMN);
     assertNotNull(lastUpdateCell);
     assertTrue(testStartMillis < Bytes.toLong(CellUtil.cloneValue(lastUpdateCell)));
-    Cell respondingRegionServerCell = result.getColumnLatestCell(UpdatingCoprocessor.METADATA_FAMILY,
-        UpdatingCoprocessor.RESPONDING_SERVER_COLUMN);
+    Cell respondingRegionServerCell = result.getColumnLatestCell(UpdatingObserver.METADATA_FAMILY,
+        UpdatingObserver.RESPONDING_SERVER_COLUMN);
     assertNotNull(respondingRegionServerCell);
     // Should not throw an error.
     ServerName.parseServerName(Bytes.toString(CellUtil.cloneValue(respondingRegionServerCell)));
     // Validate the expensive value we computed
-    Cell expensiveResultCell = result.getColumnLatestCell(UpdatingCoprocessor.METADATA_FAMILY,
-        UpdatingCoprocessor.EXPENSIVE_RESULT_COLUMN);
+    Cell expensiveResultCell = result.getColumnLatestCell(UpdatingObserver.METADATA_FAMILY,
+        UpdatingObserver.EXPENSIVE_RESULT_COLUMN);
     assertNotNull(expensiveResultCell);
     assertEquals(Bytes.toString(CellUtil.cloneValue(expensiveResultCell)), "$1,000,000.00");
   }
