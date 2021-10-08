@@ -32,6 +32,7 @@ public class CoprocessorTest {
   @BeforeClass
   public static void before() throws Exception {
     TEST_UTIL = new HBaseTestingUtility();
+    TEST_UTIL.getConfiguration().set("hbase.coprocessor.region.classes", UpdatingCoprocessor.class.getName());
     TEST_UTIL.startMiniCluster(1);
   }
 
@@ -52,7 +53,6 @@ public class CoprocessorTest {
     }
 
     HTableDescriptor htd = new HTableDescriptor(tn);
-    htd.addCoprocessor(UpdatingCoprocessor.class.getName());
     htd.addFamily(new HColumnDescriptor(UpdatingCoprocessor.METADATA_FAMILY));
     htd.addFamily(new HColumnDescriptor(DATA_FAMILY));
     admin.createTable(htd);
@@ -65,7 +65,7 @@ public class CoprocessorTest {
     t.put(p);
 
     Result result = t.get(new Get(p.getRow()));
-    assertEquals(p.size() + 2, result.size());
+    assertEquals(p.size() + 3, result.size());
     for (Cell cell : result.listCells()) {
       System.out.println(CellUtil.toString(cell, true));
     }
@@ -79,6 +79,11 @@ public class CoprocessorTest {
     assertNotNull(respondingRegionServerCell);
     // Should not throw an error.
     ServerName.parseServerName(Bytes.toString(CellUtil.cloneValue(respondingRegionServerCell)));
+    // Validate the expensive value we computed
+    Cell expensiveResultCell = result.getColumnLatestCell(UpdatingCoprocessor.METADATA_FAMILY,
+        UpdatingCoprocessor.EXPENSIVE_RESULT_COLUMN);
+    assertNotNull(expensiveResultCell);
+    assertEquals(Bytes.toString(CellUtil.cloneValue(expensiveResultCell)), "$1,000,000.00");
   }
 
 }
