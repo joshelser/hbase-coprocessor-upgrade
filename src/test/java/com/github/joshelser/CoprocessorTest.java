@@ -14,6 +14,7 @@ import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
 import org.apache.hadoop.hbase.client.Connection;
+import org.apache.hadoop.hbase.client.CoprocessorDescriptorBuilder;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
@@ -33,7 +34,6 @@ public class CoprocessorTest {
   public static void before() throws Exception {
     TEST_UTIL = new HBaseTestingUtility();
     TEST_UTIL.getConfiguration().set("hbase.coprocessor.region.classes", UpdatingObserver.class.getName());
-    TEST_UTIL.getConfiguration().set("hbase.coprocessor.regionserver.classes", UpdatingCoprocessor.class.getName());
     TEST_UTIL.startMiniCluster(1);
   }
 
